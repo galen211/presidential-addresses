@@ -9,7 +9,7 @@ This is the first and only *individual* (as opposed to *team*) this semester.
 Term: Spring 2017
 
 + Project title: Lorem ipsum dolor sit amet
-+ This project is conducted by [your name]
++ This project is conducted by Galen Simmons
 
 + Project summary: [a short summary] This is my summary.  We investigate which topics Presidents have focused the most on in their inaugural speeches
 

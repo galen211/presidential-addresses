@@ -11,7 +11,7 @@ Term: Spring 2017
 + Project title: Lorem ipsum dolor sit amet
 + This project is conducted by [your name]
 
-+ Project summary: We investigate which topics Presidents have focused the most on in their inaugural speeches.
++ Project summary: [a short summary] This is my summary.  We investigate which topics Presidents have focused the most on in their inaugural speeches
 
 Following [suggestions](http://nicercode.github.io/blog/2013-04-05-projects/) by [RICH FITZJOHN](http://nicercode.github.io/about/#Team) (@richfitz). This folder is orgarnized as follows.
 

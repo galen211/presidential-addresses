@@ -25,3 +25,5 @@ proj/
 ```
 
 Please see each subfolder for a README file.
+
+Here's some contrib info

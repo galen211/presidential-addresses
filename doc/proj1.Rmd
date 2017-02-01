@@ -1,0 +1,74 @@
+---
+title: "What did the presidents say at their inauguration?"
+output: html_notebook
+---
+# Step 0: check and install needed packages. Load the libraries and functions. 
+```{r}
+packages.used=c(
+  "dplyr",
+  "readr",
+  "DT",
+  "tibble",
+  "htmlwidgets",
+  "xlsx",         # packages used for importing xlsx files
+  "rJava",
+  "xlsxjars",     
+  "tm"            # text mining package used for tf-idf
+  )
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+# load packages
+library("dplyr")
+library("readr")
+library("DT")
+library("tibble")
+library("htmlwidgets")
+library("xlsx")
+library("rJava")
+library("xlsxjars")
+library("tm")
+```
+## Step 0.1: check R version
+```{r}
+print(R.version)
+```
+# Step 1: get inaugural speeches and metadata into dataframe
+```{r}
+print(paste("You are working from ", getwd()))
+
+inaug.list=read.xlsx(file.path("..","data","InaugurationInfo.xlsx",fsep = .Platform$file.sep),1)
+speech.list=rbind(inaug.list)
+speech.list$type=c(rep("inaugural", nrow(inaug.list)))
+speech.list$id = c(seq(nrow(speech.list)))
+speech.list$path=file.path("..","data","InauguralSpeeches",
+                            paste0("inaug",speech.list$File,"-",speech.list$Term,".txt"),
+                            fsep = .Platform$file.sep)
+```
+## Step 1.1: loop over text files to get speech text into dataframe
+```{r}
+for(i in seq(nrow(speech.list))) {
+  speech_text = paste(readLines(speech.list$path[i], n=-1, skipNul=TRUE, warn = FALSE), collapse = " ")
+  speech.list$fulltext[i]=speech_text
+}
+```
+# Step 2: construct term frequency inverse document frequency matrix (tf-idf)
+```{r}
+require(tm)
+set.seed(0) # set seed = 0 so that results are reproducible
+
+ds = DirSource(directory = file.path("..","data","InauguralSpeeches",fsep = .Platform$file.sep),
+               pattern = "*.txt",
+               mode = "text")
+speech.corpus = VCorpus(ds,ds$reader(ds$speech_text))
+
+```
+
+

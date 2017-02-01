@@ -34,3 +34,38 @@ for(i in 1:nrow(speech.list)){
   }
 }
 ```
+
+
+
+-------------
+  
+  # Step 2: construct term frequency inverse document frequency matrix (tf-idf)
+  ```{r}
+require(tm)
+ds = DirSource(directory = file.path("..","data","InauguralSpeeches",fsep = .Platform$file.sep),
+               pattern = "*.txt",
+               mode = "text")
+```
+## Step 2.1: create VCorpus object
+```{r}
+speech.corpus = VCorpus(ds)
+control_list <- list(removePunctuation = TRUE, stopwords = stopwords("english"), tolower = TRUE)
+speech.tdm = TermDocumentMatrix(speech.corpus, control = control_list)
+speech.tfidf = weightTfIdf(speech.tdf,normalize = TRUE)
+```
+## Step 2.2: 
+```{r}
+tf <- as.matrix(speech.tdm) # term frequnecy
+```
+## Step 2.3: most common words in corpus
+```{r}
+wordcloud(tf$term, tf$docs$`sum(count)`,
+          scale=c(5,0.5),
+          max.words=100,
+          min.freq=1,
+          random.order=FALSE,
+          rot.per=0.3,
+          use.r.layout=T,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Blues"))
+```

@@ -1,0 +1,162 @@
+---
+title: "What did the presidents say at their inauguration?"
+output: html_notebook
+---
+# Step 0: check and install needed packages. Load the libraries and functions. 
+```{r, message=FALSE, warning=FALSE}
+packages.used=c(
+  "dplyr",
+  "readr",
+  "DT",
+  "tibble",
+  "htmlwidgets",
+  "xlsx",         # packages used for importing xlsx files
+  "rJava",
+  "xlsxjars",     
+  "tm", # text mining package used for tf.countries-idf
+  "wordcloud",
+  "RColorBrewer",
+  "tydytext",
+  "maps", # for mapping
+  "rworldmap",
+  "sentimentr",
+  "qdap",
+  "RWeka"
+  )
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+# load packages
+library("dplyr")
+library("readr")
+library("DT")
+library("tibble")
+library("htmlwidgets")
+library("xlsx")
+library("rJava")
+library("xlsxjars")
+library("tm")
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+library(dplyr)
+library(tidytext)
+library("sentimentr")
+library("qdap")
+library("RWeka")
+
+```
+# get inaugural speeches and metadata into dataframe
+```{r}
+inaug.list=read.xlsx(file.path("..","data","InaugurationInfo.xlsx",fsep = .Platform$file.sep),1)
+speech.list=rbind(inaug.list)
+speech.list$type=c(rep("inaugural", nrow(inaug.list)))
+speech.list$id = c(seq(nrow(speech.list)))
+speech.list$path=file.path("..","data","InauguralSpeeches",
+                            paste0("inaug",speech.list$File,"-",speech.list$Term,".txt"),
+                            fsep = .Platform$file.sep)
+```
+# get a single speech into a data frame so that we can figure out interesting objectives
+```{r}
+text_df <- data_frame(readLines(speech.list$path[1]))
+text_df
+```
+# ome
+```{r dependson = "text_df", R.options = list(dplyr.print_max = 10)}
+text_df %>%
+  unnest_tokens(c(text_df), txt, token = "sentences")
+```
+
+
+## Step 1.1: loop over text files to get speech text into dataframe
+```{r, message=FALSE, warning=FALSE}
+for(i in seq(nrow(speech.list))) {
+  speech_text = paste(readLines(speech.list$path[i], n=-1, skipNul=TRUE, warn = FALSE), collapse = " ")
+  speech.list$fulltext[i]=speech_text
+}
+```
+## Step 1.3: count occurances
+```{r}
+ds = DirSource(directory = file.path("..","data","InauguralSpeeches",fsep = .Platform$file.sep),
+               pattern = "*.txt",
+               mode = "text")
+control_list <- list(removePunctuation = TRUE,
+                     removeWords = stopwords("en"),
+                     tolower = TRUE,
+                     removeNumbers = TRUE,
+                     stripWhitespace = TRUE,
+                     PlainTextDocument = TRUE)
+speech.corpus = VCorpus(ds,readerControl = control_list)
+speech.tdm = TermDocumentMatrix(speech.corpus, control = control_list)
+```
+# determine countries and continents mentioned in speeches
+```{r}
+require('maps')
+us_cities = tolower(substr(us.cities$name,1,nchar(us.cities$name)-3)) # get city names
+countries = tolower(unique(world.cities$country.etc)) # get country names
+# append united kingdom
+
+# russia was the soviet union
+combined_speeches = PlainTextDocument(speech.corpus,language = "eng")
+regions = c("europe","asia","africa","north america","south america","middle east","central america")
+
+tf.countries = termFreq(combined_speeches,control = list(dictionary = countries))
+tf.regions = termFreq(combined_speeches,control = list(dictionary = regions))
+
+countries_mentioned <- names(as.list(tf.countries[tf.countries!=0]))
+
+```
+# summarize findings - which foreign country was mentioned the most times?
+```{r}
+term = "war"
+tdm.tidy=tidy(speech.tdm)
+tdm.overall=summarise(group_by(tdm.tidy, term), sum(count))
+#hist(,plot=TRUE)
+```
+# Plotting foreign countries mentioned in Inaugural Addresses
+```{r}
+require(countrycode)
+require(rworldmap)
+
+theCountries <- countrycode(countries_mentioned,'country.name','iso3c')
+# These are the ISO3 names of the countries you'd like to plot in red
+
+menDF <- data.frame(country = theCountries,
+  mentioned = TRUE)
+
+menMap <- joinCountryData2Map(menDF, joinCode = "ISO3",
+  nameJoinColumn = "country")
+# This will join your menDF data.frame to the country map data
+
+mapCountryData(menMap, nameColumnToPlot="mentioned", catMethod = "categorical",
+  missingCountryCol = gray(.8), mapTitle = "Foreign Countries Mentioned in Inaugural Addresses", addLegend = FALSE)
+# And this will plot it, with the trick that the color palette's first
+# color is red
+```
+# Let's look at the context in which the countries were mentioned
+```{r, message=FALSE, warning=FALSE}
+sentence.list=NULL
+for(i in 1:nrow(speech.list)){
+  sentences=sent_detect(speech.list$fulltext[i],
+                        endmarks = c("?", ".", "!", "|",";"))
+  if(length(sentences)>0){
+    word.count=word_count(sentences)
+    # colnames(emotions)=paste0("emo.", colnames(emotions))
+    # in case the word counts are zeros?
+    sentence.list=rbind(sentence.list, 
+                        cbind(speech.list[i,-ncol(speech.list)],
+                              sentences=as.character(sentences), 
+                              word.count,
+                              sent.id=1:length(sentences)
+                              )
+    )
+  }
+}
+```

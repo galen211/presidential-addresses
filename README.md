@@ -1,17 +1,19 @@
 # Spring 2017
-# Presidential Inaugural Address Project: What did the presidents say at their inauguration?
+# Presidential Inaugural Address Project
+### What did the presidents say at their inauguration?
 
 ![image](figs/title.jpg)
 
-### [Project Description](doc/)
+## [Project Description](doc/)
 
 + Project title: Analyzing the Words of Presidents
 + Analysis by Galen Simmons
 
-+ Project summary: I was interested in looking at the most common themes across different presidential inaugural addresses.  What I found is that there is not a substantial difference in themes between Republican and Democratic presidents.  Unsurprisingly, modern addresses differ substantially from those delivered in the 18th and 19th century.  Certain key words appear in a majority of presidential inaugural addresses.
+### Project summary:
+I was interested in looking at the most common themes across different presidential inaugural addresses.  What I found is that there is not a substantial difference in themes between Republican and Democratic presidents.  Unsurprisingly, modern addresses differ substantially from those delivered in the 18th and 19th century.  Certain key words appear in a majority of presidential inaugural addresses.
 
 I was also interested in creating a quantitative measurement of similarity between modern presidents.  Many historians have noted that the current U.S. President, Donald J. Trump, is unlike any other figure in modern politics.  As a former reality television star, his demeanor is certainly less controlled and calculated than his predecessor, President Barack Obama.  However, even prominent Republicans think that he has an unusual style.  The Independent, a UK newspaper, reported that after President Trump's address, ex-President George W. Bush was heard to saying to an acquaintance:
->"that was some **weird** sh*t" - [Link to source](http://www.independent.co.uk/news/world/americas/us-politics/george-w-bush-donald-trump-inauguration-weird-shit-word-ceremony-us-president-a7657246.html
+>"that was some weird sh*t" - [article source](http://www.independent.co.uk/news/world/americas/us-politics/george-w-bush-donald-trump-inauguration-weird-shit-word-ceremony-us-president-a7657246.html
 )
 
 I examine the Pearson product-moment correlation between recent addresses.  I also look at which foreign countries have been mentioned in inaugural addresses and plot them on a world map.
@@ -26,5 +28,3 @@ proj/
 ├── figs/
 └── output/
 ```
-
-Please see each subfolder for a README file.

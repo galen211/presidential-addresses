@@ -5,8 +5,7 @@ output:
   html_notebook: default
   pdf_document: default
 ---
-
-# Load necessary libraries
+### Load necessary libraries
 ```{r, message=FALSE, warning=FALSE}
 packages.used=c("rvest", "tibble", "qdap", 
                 "sentimentr", "gplots", "dplyr",
@@ -46,114 +45,106 @@ library("maps")
 library("countrycode")
 library("rworldmap")
 
-source("../lib/plotstacked.R")
-source("../lib/speechFuncs.R")
+source("../lib/plotstacked.R") # not used
+source("../lib/speechFuncs.R") # not used
 ```
-# Get meta data from xlsx file
+### Get meta data from xlsx file
 ```{r}
 library("xlsx")
 library("rJava")
 library("xlsxjars")
-
 inaug =read.xlsx(file.path("..","data","InaugurationInfo.xlsx",fsep = .Platform$file.sep),1)
+inaug$File = NULL
+inaug$Words = NULL
 ```
-# get meta data needed for corpus (author, party affiliation, term)
-```{r}
-main.page <- read_html(x = "http://www.presidency.ucsb.edu/inaugurals.php")
-inaug_dates=f.speechlinks(main.page)
-main.page <- read_html(x = "http://www.presidency.ucsb.edu/inaugurals.php")
-inaug_dates=f.speechlinks(main.page)
-as.Date(inaug_dates[,1], format="%B %e, %Y")
-inaug$Date=inaug_dates[-nrow(inaug_dates),]
-inaug$Date=inaug$Date$links
-inaug
-```
-# Let's add the full text to the inaug data frame
-```{r, warning=FALSE}
-ds = DirSource(directory = file.path("..","data","InauguralSpeeches",fsep = .Platform$file.sep),
-               pattern = "*.txt",
-               mode = "text")
-
-for(i in seq(nrow(inaug))) {
-  speech_text = paste(readLines(ds$filelist[i], n=-1, skipNul=TRUE, warn = FALSE), collapse = " ")
-  inaug$text[i]=speech_text
-  inaug$doc[i] = PlainTextDocument(speech_text,
-                          heading = ds$filelist[i],
-                          meta = list(author=c(inaug$President[i]),term=c(inaug$Term),date=c(inaug$Date),
-                                      party=c(inaug$Party)),
-                          id = c(i),
-                          language = "en")
-}
-```
-# Let's get our inaugural speeches into a corpus
+### Let's get our inaugural speeches into a corpus
 ```{r}
 library(tm)
 ds = DirSource(directory = file.path("..","data","InauguralSpeeches",fsep = .Platform$file.sep),
                pattern = "*.txt",
                mode = "text")
-control_list <- list(removePunctuation = TRUE,
-                     removeWords = stopwords("en"),
-                     tolower = TRUE,
-                     removeNumbers = TRUE,
-                     stripWhitespace = TRUE,
-                     PlainTextDocument = TRUE)
-speech.corpus = VCorpus(ds, readerControl = control_list)
-speech.tdm = TermDocumentMatrix(speech.corpus, control = control_list)
-inspect(speech.tdm[5000:5020,1:2])
-
-sentence.list=NULL
-for(i in 1:nrow(inaug)){
-  sentences=sent_detect(inaug$fulltext[i],
-                        endmarks = c("?", ".", "!", "|",";"))
-  if(length(sentences)>0){
-    word.count=word_count(sentences)
-    sentence.list=rbind(sentence.list, 
-                        cbind(inaug[i,-ncol(inaug)],
-                              sentences=as.character(sentences), 
-                              word.count,
-                              sent.id=1:length(sentences)
-                              )
-    )
-  }
+corpus = VCorpus(ds,readerControl = list(reader=ds$reader,language="en"))
+```
+# Check to ensure that speeches were correctly imported
+```{r}
+corpus[[1]]$content
+```
+# Convert speeches into a Tibble data frame
+```{r}
+# loop over corpus to get 
+rawtext = NULL
+for(i in seq(length(corpus))) {
+  rawtext[i] <- corpus[[i]]$content
 }
-```
-# Display a speech
-```{r text_df, dependson="text"}
-text = c(inaug$doc[[5]])
-text_df <- data_frame(text)
-head(text_df)
-```
-# Let's unnest tokens from speeches
-```{r R.options = list(dplyr.print_max = 10)}
-# create a tibble
-tb = tibble(author=inaug$President,
-            party=inaug$Party,
-            text=inaug$text,
-            date=inaug$Date,
-            term=inaug$Term,
-            file=inaug$File)
 
-word_tb = unnest_tokens(tb,words,text,token="words")
-word_tb
+# create a tibble
+tb_speeches = tibble(author=inaug$President,
+            party=inaug$Party,
+            text=rawtext,
+            term=inaug$Term)
 ```
-# Now let's remove stop words and clean up the tibble
+### For the first task, let's split the speeches into sentences and try to figure out whether the speeches are more "positive" or "negative" on balance.  We split the text into sentences because whole paragraphs tend to average out positive and negative sentiments.  We'll assign sentiments to sentences using the NRC method. 
 ```{r}
+tb_sentences <- tb_speeches %>%
+  group_by(author) %>%
+  unnest_tokens(sentence, text, token = "sentences") 
+tb_sentences$score <- get_sentiment(tb_sentences$sentence, method = "nrc")
+```
+### Let's see which Presidents have the highest mean sentiment scores (calculated over the sentences in their inaugural address) based on the NRC scoring method.
+```{r}
+mean_scores <- tb_sentences %>%
+  group_by(author) %>%
+  summarise(mean(score))
+mean_scores$score <- mean_scores$`mean(score)` # change annoying column name.  There's prob a better way
+mean_scores$`mean(score)` <- NULL
+
+ggplot(mean_scores,aes(author,score)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(y = "Mean Sentiment Over Sentences in Inaugural Address",
+       x = NULL) +
+  coord_flip()
+# ideally would like to be able to sort by the top sentiment scores to the bottom
+```
+### One interesting observation about the sentiment measure is that Trump is assigned a highly positive sentiment even though some reports of his speech characterized it as one of the gloomiest speeches of all time.  It might be because Trump has a tendency to use positive superlatives in a more indiscriminate manner compared to other, more tempered politicans.
+
+### Now we will look at word counts to see if there are any interesting trends to observe there.  Not surprisingly, the word cloud shows that most of the words have to do with politics.
+```{r, warning=FALSE}
+stop_words <- data("stop_words")
+tb_words <- tb_speeches %>%
+  group_by(author) %>%
+  unnest_tokens(word, text, token = "words") 
+tb_words$word <- removePunctuation(tb_words$word)
+tb_words$word <- removeNumbers(tb_words$word)
 data(stop_words)
-clean_word_tb <-anti_join(word_tb,stop_words,by=c("words"="word"))
-clean_word_tb$words <-removePunctuation(clean_word_tb$words,preserve_intra_word_dashes = TRUE)
-clean_word_tb
+tb_words_nostop <- anti_join(tb_words,stop_words,by=c("word"="word"))
+
+wordcloud <- tb_words_nostop %>%
+  group_by(word) %>%
+  count(word,sort=TRUE)
+wordcloud(wordcloud$word,wordcloud$n,max.words=50)
 ```
-# Let's see which words appear the most (excluding stop words)
+# Let's confirm our understanding of the topic of "politics" by running an LDA (removing all stop words)
 ```{r}
-clean_word_tb %>%
-  count(words, sort=TRUE)
+dtm <- DocumentTermMatrix(corpus, control = list(removePunctuation = TRUE, stopwords = TRUE))
+lda <- LDA(dtm,method="Gibbs",control = list(alpha=0.1),k=5) # running only a 5 topic model
+topics <- topics(lda,5)
+```
+# Let's view some of the topics derived from the lda model.  These are topics provided by the LDA model, and match what we know about American politics.  It would be interesting to compare topic models with other countries, for example, China where there are different political buzzwords like "harmonious society".
+```{r}
+topics.hash
+```
+# Let's go back to the most frequent terms (excluding stop words).  I'm curious to know more about how president's differ from each other in their topic choice.
+```{r}
+tb_words_nostop %>%
+  group_by(word) %>%
+  count(word, sort=TRUE)
 ```
 # Let's visualize that
 ```{r}
-clean_word_tb %>%
-  count(words, sort = TRUE) %>%
+tb_words_nostop %>%
+  count(word, sort = TRUE) %>%
   filter(n > 150) %>%
-  mutate(word = reorder(words, n)) %>%
+  mutate(word = reorder(word, n)) %>%
   ggplot(aes(word, n)) +
   geom_bar(stat = "identity") +
   xlab(NULL) +
@@ -163,10 +154,12 @@ clean_word_tb %>%
 # Now let's see how Obama and Trump compare
 ```{r}
 
-tidy_comparison <- bind_rows(trump <- filter(clean_word_tb, author=="Donald J. Trump"),
-                             clinton <- filter(clean_word_tb, author=="William J. Clinton"))
 
-obama_percent <- clean_word_tb %>%
+
+tidy_comparison <- bind_rows(trump <- filter(tb_words_nostop, author=="Donald J. Trump"),
+                             clinton <- filter(tb_words_nostop, author=="William J. Clinton"))
+
+obama_percent <- tb_words_nostop %>%
   mutate(word = str_extract(words, "[a-z']+")) %>%
   count(word) %>%
   transmute(word, obama = n / sum(n))
@@ -376,41 +369,5 @@ mapCountryData(menMap, nameColumnToPlot="mentioned", catMethod = "categorical",
   missingCountryCol = gray(.8), mapTitle = "Foreign Countries Mentioned in Inaugural Addresses", addLegend = FALSE)
 # And this will plot it, with the trick that the color palette's first
 # color is red
-```
-
-
-```{r}
-library(plotly)
-
-df <- read.csv('https://raw.githubusercontent.com/plotly/datasets/master/2014_world_gdp_with_codes.csv')
-
-# light grey boundaries
-l <- list(color = toRGB("grey"), width = 0.5)
-
-# specify map projection/options
-g <- list(
-  showframe = FALSE,
-  showcoastlines = FALSE,
-  projection = list(type = 'Mercator')
-)
-
-p <- plot_geo(df) %>%
-  add_trace(
-    z = ~GDP..BILLIONS., color = ~GDP..BILLIONS., colors = 'Blues',
-    text = ~COUNTRY, locations = ~CODE, marker = list(line = l)
-  ) %>%
-  colorbar(title = 'GDP Billions US$', tickprefix = '$') %>%
-  layout(
-    title = '2014 Global GDP<br>Source:<a href="https://www.cia.gov/library/publications/the-world-factbook/fields/2195.html">CIA World Factbook</a>',
-    geo = g
-  )
-
-p
-```
-
-
-```{r}
-source("~/.Rprofile")
-
 ```
 
